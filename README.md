@@ -1,5 +1,7 @@
 # Unity color picker
 
-This is a simple color picker tool that looks like the one in unity editor, but can be used in built applications. It’s a part of unity UI system, so it works everywhere where normal UI would work, from mobile to VR. Thanks to a shader that draws the whole thing, color picker uses only one gameobject and doesn’t require a complex setup. Also thanks to this shader no textures are required, and lines are smooth at any resolution and size.
+This is a simple color picker for Unity UI (uGUI) that can be used in runtime. It uses a custom shader to make the lines crisp at any resolution.
 
 ![Screenshot](Screenshot.png?raw=true)
+
+This project was last edited in Unity 2022.3.21f1. If you have an earlier version, you can use scripts and shader only and they should still work.

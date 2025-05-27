@@ -1,134 +1,141 @@
-
 using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 using static UnityEngine.Mathf;
 
 [ExecuteInEditMode, RequireComponent(typeof(Image))]
-public class ColorPicker : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
+public class ColorPicker : UIBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler, IMaterialModifier
 {
-    private const float recip2Pi = 0.159154943f;
-    private const string colorPickerShaderName = "UI/ColorPicker";
+    private const float Recip2Pi = 0.5f / PI;
+    private const string ColorPickerShaderName = "UI/ColorPicker";
 
-    private static readonly int _HSV             = Shader.PropertyToID(nameof(_HSV));
-    private static readonly int _AspectRatio     = Shader.PropertyToID(nameof(_AspectRatio));
-    private static readonly int _HueCircleInner  = Shader.PropertyToID(nameof(_HueCircleInner));
-    private static readonly int _SVSquareSize    = Shader.PropertyToID(nameof(_SVSquareSize));
+    private static readonly int _HSV = Shader.PropertyToID(nameof(_HSV));
+    private static readonly int _AspectRatio = Shader.PropertyToID(nameof(_AspectRatio));
+    private static readonly int _HueCircleInner = Shader.PropertyToID(nameof(_HueCircleInner));
+    private static readonly int _HueSelectorInner = Shader.PropertyToID(nameof(_HueSelectorInner));
+    private static readonly int _SVSquareSize = Shader.PropertyToID(nameof(_SVSquareSize));
 
-    [SerializeField, HideInInspector] private Shader colorPickerShader;
-    private Material generatedMaterial;
+    [SerializeField, Range(0, 0.5f)] private float _hueCircleInnerRadius = 0.4f;
+    [SerializeField, Range(0, 1)] private float _hueSelectorInnerRadius = 0.8f;
+    [SerializeField, Range(0, 0.5f)] private float _saturationValueSquareSize = 0.25f;
+
+    [SerializeField, FormerlySerializedAs("colorPickerShader")] private Shader _colorPickerShader;
+    private Material _generatedMaterial;
 
     private enum PointerDownLocation { HueCircle, SVSquare, Outside }
-    private PointerDownLocation pointerDownLocation = PointerDownLocation.Outside;
+    private PointerDownLocation _pointerDownLocation = PointerDownLocation.Outside;
 
-    private RectTransform rectTransform;
-    private Image image;
+    private RectTransform _rectTransform => (RectTransform)transform;
 
-    float h, s, v;
+    private float _h, _s, _v;
 
     public Color color
     {
-        get { return Color.HSVToRGB(h, s, v); }
-        set {
-            Color.RGBToHSV(value, out h, out s, out v);
+        get => Color.HSVToRGB(_h, _s, _v);
+        set
+        {
+            Color.RGBToHSV(value, out _h, out _s, out _v);
             ApplyColor();
         }
     }
 
     public event Action<Color> onColorChanged;
 
-    private void Awake()
+#if UNITY_EDITOR
+    protected override void Reset()
     {
-        rectTransform = transform as RectTransform;
-        image = GetComponent<Image>();
+        base.Reset();
 
-        h = s = v = 0;
+        _colorPickerShader = Shader.Find(ColorPickerShaderName);
+    }
+#endif
 
-        if (WrongShader())
+    protected override void OnRectTransformDimensionsChange()
+    {
+        base.OnRectTransformDimensionsChange();
+        UpdateAspectRatio();
+    }
+
+    private void UpdateAspectRatio()
+    {
+        if (_generatedMaterial != null)
         {
-            Debug.LogWarning($"Color picker requires image material with {colorPickerShaderName} shader.");
+            var rect = _rectTransform.rect;
 
-            if (Application.isPlaying && colorPickerShader != null)
-            {
-                generatedMaterial = new Material(colorPickerShader);
-                generatedMaterial.hideFlags = HideFlags.HideAndDontSave;
-            }
+            _generatedMaterial.SetFloat(_AspectRatio, rect.width / rect.height);
+        }
+    }
 
-            image.material = generatedMaterial;
-
-            return;
+    public Material GetModifiedMaterial(Material baseMaterial)
+    {
+        if (_generatedMaterial == null)
+        {
+            _generatedMaterial = new Material(_colorPickerShader);
+            _generatedMaterial.hideFlags = HideFlags.HideAndDontSave;
         }
 
+        UpdateAspectRatio();
         ApplyColor();
+        ApplySizesOfElements();
+
+        return _generatedMaterial;
     }
 
-    private void Reset()
+    public void ApplySizesOfElements()
     {
-        colorPickerShader = Shader.Find(colorPickerShaderName);
-    }
-
-    private bool WrongShader()
-    {
-        return image?.material?.shader?.name != colorPickerShaderName;
-    }
-
-    private void Update()
-    {
-        if (WrongShader()) return;
-
-        var rect = rectTransform.rect;
-
-        image.material.SetFloat(_AspectRatio, rect.width / rect.height);
+        if (_generatedMaterial != null)
+        {
+            _generatedMaterial.SetFloat(_HueCircleInner, _hueCircleInnerRadius);
+            _generatedMaterial.SetFloat(_HueSelectorInner, _hueSelectorInnerRadius);
+            _generatedMaterial.SetFloat(_SVSquareSize, _saturationValueSquareSize);
+        }
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        if (WrongShader()) return;
+        var relativePosition = GetRelativePosition(eventData);
 
-        var pos = GetRelativePosition(eventData);
-
-        if (pointerDownLocation == PointerDownLocation.HueCircle)
+        if (_pointerDownLocation == PointerDownLocation.HueCircle)
         {
-            h = (Atan2(pos.y, pos.x) * recip2Pi + 1) % 1;
+            _h = (Atan2(relativePosition.y, relativePosition.x) * Recip2Pi + 1) % 1;
             ApplyColor();
         }
 
-        if (pointerDownLocation == PointerDownLocation.SVSquare)
+        if (_pointerDownLocation == PointerDownLocation.SVSquare)
         {
-            var size = image.material.GetFloat(_SVSquareSize);
+            var size = _generatedMaterial.GetFloat(_SVSquareSize);
 
-            s = InverseLerp(-size, size, pos.x);
-            v = InverseLerp(-size, size, pos.y);
+            _s = InverseLerp(-size, size, relativePosition.x);
+            _v = InverseLerp(-size, size, relativePosition.y);
             ApplyColor();
         }
     }
 
     public void OnPointerDown(PointerEventData eventData)
     {
-        if (WrongShader()) return;
+        var relativePosition = GetRelativePosition(eventData);
 
-        var pos = GetRelativePosition(eventData);
+        float r = relativePosition.magnitude;
 
-        float r = pos.magnitude;
-
-        if (r < .5f && r > image.material.GetFloat(_HueCircleInner))
+        if (r < 0.5f && r > _generatedMaterial.GetFloat(_HueCircleInner))
         {
-            pointerDownLocation = PointerDownLocation.HueCircle;
-            h = (Atan2(pos.y, pos.x) * recip2Pi + 1) % 1;
+            _pointerDownLocation = PointerDownLocation.HueCircle;
+            _h = (Atan2(relativePosition.y, relativePosition.x) * Recip2Pi + 1) % 1;
             ApplyColor();
         }
         else
         {
-            var size = image.material.GetFloat(_SVSquareSize);
+            var size = _generatedMaterial.GetFloat(_SVSquareSize);
 
             // s -> x, v -> y
-            if (pos.x >= -size && pos.x <= size && pos.y >= -size && pos.y <= size)
+            if (relativePosition.x >= -size && relativePosition.x <= size && relativePosition.y >= -size && relativePosition.y <= size)
             {
-                pointerDownLocation = PointerDownLocation.SVSquare;
-                s = InverseLerp(-size, size, pos.x);
-                v = InverseLerp(-size, size, pos.y);
+                _pointerDownLocation = PointerDownLocation.SVSquare;
+                _s = InverseLerp(-size, size, relativePosition.x);
+                _v = InverseLerp(-size, size, relativePosition.y);
                 ApplyColor();
             }
         }
@@ -136,20 +143,24 @@ public class ColorPicker : MonoBehaviour, IPointerDownHandler, IDragHandler, IPo
 
     public void OnPointerUp(PointerEventData eventData)
     {
-        pointerDownLocation = PointerDownLocation.Outside;
+        _pointerDownLocation = PointerDownLocation.Outside;
     }
 
     private void ApplyColor()
     {
-        image.material.SetVector(_HSV, new Vector3(h, s, v));
+        _generatedMaterial.SetVector(_HSV, new Vector3(_h, _s, _v));
 
         onColorChanged?.Invoke(color);
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
-        if (generatedMaterial != null)
-            DestroyImmediate(generatedMaterial);
+        base.OnDestroy();
+
+        if (_generatedMaterial != null)
+        {
+            DestroyImmediate(_generatedMaterial);
+        }
     }
 
     /// <summary>
@@ -161,14 +172,14 @@ public class ColorPicker : MonoBehaviour, IPointerDownHandler, IDragHandler, IPo
 
         Vector2 rtPos;
 
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, eventData.position, eventData.pressEventCamera, out rtPos);
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(_rectTransform, eventData.position, eventData.pressEventCamera, out rtPos);
 
         return new Vector2(InverseLerpUnclamped(rect.xMin, rect.xMax, rtPos.x), InverseLerpUnclamped(rect.yMin, rect.yMax, rtPos.y)) - Vector2.one * 0.5f;
     }
 
     public Rect GetSquaredRect()
     {
-        var rect = rectTransform.rect;
+        var rect = _rectTransform.rect;
         var smallestDimension = Min(rect.width, rect.height);
         return new Rect(rect.center - Vector2.one * smallestDimension * 0.5f, Vector2.one * smallestDimension);
     }
@@ -177,21 +188,4 @@ public class ColorPicker : MonoBehaviour, IPointerDownHandler, IDragHandler, IPo
     {
         return (value - min) / (max - min);
     }
-
-#if UNITY_EDITOR
-
-    [UnityEditor.MenuItem("GameObject/UI/Color Picker", false, 10)]
-    private static void CreateColorPicker(UnityEditor.MenuCommand menuCommand)
-    {
-        GameObject go = new GameObject("Color Picker");
-
-        go.AddComponent<ColorPicker>();
-
-        UnityEditor.GameObjectUtility.SetParentAndAlign(go, menuCommand.context as GameObject);
-
-        UnityEditor.Undo.RegisterCreatedObjectUndo(go, "Create " + go.name);
-        UnityEditor.Selection.activeObject = go;
-    }
-#endif
-
 }

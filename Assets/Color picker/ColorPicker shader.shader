@@ -1,4 +1,3 @@
-
 Shader "UI/ColorPicker"
 {
     Properties
@@ -21,7 +20,7 @@ Shader "UI/ColorPicker"
         // Color picker
 
         _HueCircleInner("Hue circle inner radius", Range(0, .5)) = .4
-        _HueSelectorInner("Hue selector inner radius", Range(0, 1)) = .8    
+        _HueSelectorInner("Hue selector inner radius", Range(0, 1)) = .8
         _SVSquareSize("SV Square size", Range(0, .5)) = .25
     }
 

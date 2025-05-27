@@ -1,27 +1,26 @@
-
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 public class ColorPreview : MonoBehaviour
 {
-    public Graphic previewGraphic;
-
-    public ColorPicker colorPicker;
+    [SerializeField, FormerlySerializedAs("previewGraphic")] private Graphic _previewGraphic;
+    [SerializeField, FormerlySerializedAs("colorPicker")] private ColorPicker _colorPicker;
 
     private void Start()
     {
-        previewGraphic.color = colorPicker.color;
-        colorPicker.onColorChanged += OnColorChanged;
+        _colorPicker.onColorChanged += OnColorChanged;
+        OnColorChanged(_colorPicker.color);
     }
 
     public void OnColorChanged(Color c)
     {
-        previewGraphic.color = c;
+        _previewGraphic.color = c;
     }
 
     private void OnDestroy()
     {
-        if (colorPicker != null)
-            colorPicker.onColorChanged -= OnColorChanged;
+        if (_colorPicker != null)
+            _colorPicker.onColorChanged -= OnColorChanged;
     }
 }
