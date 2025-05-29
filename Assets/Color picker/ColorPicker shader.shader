@@ -205,6 +205,8 @@ Shader "UI/ColorPicker"
 
                 color = mix(color, svSelector);
 
+                color.a *= IN.color.a;
+
                 // Unity stuff
 
                 #ifdef UNITY_UI_CLIP_RECT
