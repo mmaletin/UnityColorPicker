@@ -216,10 +216,10 @@ Shader "UI/ColorPicker"
                 #endif
 
                 #ifdef UNITY_COLORSPACE_GAMMA
-                return color;
+                return fixed4(color.rgb, color.a * IN.color.a);
                 #endif
 
-                return fixed4(GammaToLinearSpace(color.rgb), color.a);
+                return fixed4(GammaToLinearSpace(color.rgb), color.a * IN.color.a);
             }
         ENDCG
         }
